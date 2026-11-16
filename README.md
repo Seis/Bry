@@ -8,6 +8,8 @@ Backend Java challenge for BRy (Grupo Certifica).
 - Maven Wrapper included; a global Maven installation is optional.
 - Spring Boot 3.5.16 and BouncyCastle 1.87.
 
+The project retains Spring Boot 3 as required by the challenge.
+
 For the locally installed JDK:
 
 ```bash
