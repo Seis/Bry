@@ -13,11 +13,12 @@
 
     <groupId>br.com.bry</groupId>
     <artifactId>bry</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>${revision}</version>
     <name>bry</name>
     <description>BRy backend Java challenge (Grupo Certifica)</description>
 
     <properties>
+        <revision>1.0-SNAPSHOT</revision>
         <java.version>17</java.version>
         <bouncycastle.version>1.87</bouncycastle.version>
     </properties>

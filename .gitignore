@@ -48,3 +48,6 @@ Desktop.ini
 
 # Original archive: extracted resources live in src/main/resources
 /desafio-resources2.zip
+
+# Delivery documents are kept locally and shared separately
+/docs/
