@@ -10,6 +10,7 @@ import java.security.PrivateKey;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 
 import org.bouncycastle.cert.jcajce.JcaCertStore;
@@ -24,9 +25,42 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import br.com.bry.challenge.exception.InvalidSigningMaterialException;
 
 public class SignatureService {
     private static final Logger log = LoggerFactory.getLogger(SignatureService.class);
+
+    public byte[] sign(byte[] document, byte[] pkcs12, char[] password)
+            throws IOException, GeneralSecurityException, CMSException, OperatorCreationException {
+        requireArgument(document, "document");
+        requireArgument(pkcs12, "pkcs12");
+        requireArgument(password, "password");
+        KeyStore store;
+        String alias;
+        try {
+            store = getStore(pkcs12, password);
+            List<String> aliases = new ArrayList<>();
+            var entries = store.aliases();
+            while (entries.hasMoreElements()) {
+                String candidate = entries.nextElement();
+                if (store.isKeyEntry(candidate)) {
+                    Key key = store.getKey(candidate, password);
+                    if (key instanceof PrivateKey && "RSA".equalsIgnoreCase(key.getAlgorithm())
+                            && store.getCertificate(candidate) instanceof X509Certificate) {
+                        aliases.add(candidate);
+                    }
+                }
+            }
+            if (aliases.size() != 1) {
+                throw new InvalidKeyException("PKCS12 must contain exactly one RSA private key with a certificate");
+            }
+            alias = aliases.get(0);
+        } catch (IOException | GeneralSecurityException e) {
+            throw new InvalidSigningMaterialException(
+                    "Invalid PKCS12, password or signing key; exactly one RSA private key is required", e);
+        }
+        return sign(document, store, alias, password);
+    }
 
     /** Returns attached CMS bytes. Null arguments are rejected with IllegalArgumentException. */
     public byte[] sign(byte[] document, byte[] pkcs12, String alias, char[] password)
@@ -36,10 +70,14 @@ public class SignatureService {
         requireArgument(alias, "alias");
         requireArgument(password, "password");
 
+        return sign(document, getStore(pkcs12, password), alias, password);
+    }
+
+    private byte[] sign(byte[] document, KeyStore store, String alias, char[] password)
+            throws IOException, GeneralSecurityException, CMSException, OperatorCreationException {
         long startedAt = System.nanoTime();
         log.debug("Starting attached CMS signing: documentBytes={}, algorithm=SHA512withRSA", document.length);
 
-        KeyStore store = getStore(pkcs12, password);
         PrivateKey pk = getPk(alias, password, store);
         if (!(store.getCertificate(alias) instanceof X509Certificate certificate)) {
             throw new GeneralSecurityException("No X.509 certificate found for alias: " + alias);

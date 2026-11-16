@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BRy — Teste de assinatura</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Teste de assinatura</h1>
+  <section>
+    <h2>1. Assinar arquivo</h2>
+    <form id="sign-form">
+      <label>Documento <input name="document" type="file" required></label>
+      <label>Certificado P12/PFX <input name="pkcs12" type="file" accept=".p12,.pfx" required></label>
+      <label>Senha <input name="password" type="password" autocomplete="off"></label>
+      <small>Documento até 5 MiB; P12/PFX até 1 MiB.</small>
+      <button type="submit">Assinar</button>
+    </form>
+    <p id="sign-message" role="status" aria-live="polite"></p>
+    <div id="downloads" hidden>
+      <a id="download-p7s">Baixar .p7s</a>
+      <a id="download-base64">Baixar Base64</a>
+      <button id="verify-generated" type="button">Validar esta assinatura</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>2. Validar assinatura</h2>
+    <form id="verify-form">
+      <label>Arquivo assinado <input name="signature" type="file" accept=".p7s,.p7m,.der,.base64,.txt" required></label>
+      <small>Selecione um .p7s ou um arquivo com a assinatura em Base64.</small>
+      <button type="submit">Validar</button>
+    </form>
+    <p id="verify-message" role="status" aria-live="polite"></p>
+    <div id="result" hidden>
+      <h3 id="result-status"></h3>
+      <p class="hint">O status considera integridade e cadeia. Confira também os avisos de data.</p>
+      <dl id="result-infos"></dl>
+      <h3>Verificações</h3>
+      <ul id="result-checks"></ul>
+      <h3>Observações</h3>
+      <ul id="result-observations"></ul>
+      <details>
+        <summary>JSON completo</summary>
+        <pre id="result-json"></pre>
+      </details>
+    </div>
+  </section>
+</main>
+</body>
+</html>
