@@ -1,3 +1,18 @@
 package br.com.bry.challenge.dto;
 
-// API response: status and signer name, signing time, document hash and digest algorithm.
+import java.time.Instant;
+import java.util.List;
+
+public record VerificationResult(
+        boolean integrityValid,
+        boolean certificateTrusted,
+        String signerName,
+        Instant signingTime,
+        String documentHash,
+        String hashAlgorithm,
+        VerificationChecks checks,
+        List<String> observations) {
+    public VerificationResult {
+        observations = List.copyOf(observations);
+    }
+}

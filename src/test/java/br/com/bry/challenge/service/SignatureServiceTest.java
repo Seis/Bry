@@ -3,6 +3,8 @@ package br.com.bry.challenge.service;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.InvalidKeyException;
@@ -28,6 +30,8 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -43,6 +47,26 @@ class SignatureServiceTest {
     private static X509Certificate expectedCertificate;
 
     private final SignatureService service = new SignatureService();
+
+    @Test
+    @DisplayName("Stage 2: sign doc.txt with SHA-512/RSA, attach it to CMS and save a .p7s file")
+    void stage2SignsChallengeDocumentAndWritesP7s(@TempDir Path directory) throws Exception {
+        byte[] signature = service.sign(document, pkcs12, alias, PASSWORD.toCharArray());
+        Path signedFile = directory.resolve("doc.p7s");
+        Files.write(signedFile, signature);
+
+        assertTrue(Files.isRegularFile(signedFile));
+        CMSSignedData savedCms = new CMSSignedData(Files.readAllBytes(signedFile));
+        assertNotNull(savedCms.getSignedContent());
+        assertArrayEquals(Utils.readResource("arquivos/doc.txt"),
+                (byte[]) savedCms.getSignedContent().getContent());
+        SignerInformation signer = singleSigner(savedCms);
+        assertEquals(NISTObjectIdentifiers.id_sha512.getId(), signer.getDigestAlgOID());
+        assertTrue(PKCSObjectIdentifiers.rsaEncryption.getId().equals(signer.getEncryptionAlgOID())
+                || PKCSObjectIdentifiers.sha512WithRSAEncryption.getId().equals(signer.getEncryptionAlgOID()));
+        assertTrue(signer.verify(new JcaSimpleSignerInfoVerifierBuilder()
+                .setProvider(new BouncyCastleProvider()).build(expectedCertificate.getPublicKey())));
+    }
 
     @BeforeAll
     static void loadChallengeFixtures() throws Exception {
