@@ -1,0 +1,2 @@
+# Preserve intentional CRLF bytes in the text-reading fixture.
+src/test/resources/arquivos/leitura.txt -text whitespace=cr-at-eol

@@ -1,0 +1,50 @@
+# Build and local tools
+/target/
+/build/
+/out/
+/.tools/
+
+# IntelliJ IDEA
+/.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse / Spring Tool Suite
+/.classpath
+/.project
+/.settings/
+/.factorypath
+/.apt_generated/
+/.springBeans
+/.sts4-cache/
+
+# Other editors
+/.vscode/
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
+
+# Local configuration and environment variables
+/.agents/
+/.codex/
+/.aws/
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs and JVM diagnostics
+*.log
+hs_err_pid*
+replay_pid*
+*.hprof
+
+# Operating system
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Original archive: extracted resources live in src/main/resources
+/desafio-resources2.zip
