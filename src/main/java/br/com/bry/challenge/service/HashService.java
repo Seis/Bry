@@ -7,6 +7,11 @@ import java.util.HexFormat;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
+/**
+ * Standalone hashing for stage 1 and its JUnit tests only.
+ * CMS signing and integrity verification calculate their digests through BouncyCastle,
+ * so those flows do not call this service or pre-hash their input document.
+ */
 public class HashService {
     public enum Algorithm { SHA256, SHA512 }
 

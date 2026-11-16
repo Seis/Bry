@@ -1,6 +1,7 @@
 package br.com.bry.challenge.service;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -23,6 +24,10 @@ import java.util.stream.Stream;
 import br.com.bry.challenge.dto.VerificationResult;
 import br.com.bry.challenge.util.Utils;
 import org.bouncycastle.asn1.ASN1EncodableVector;
+import org.bouncycastle.asn1.DERUTF8String;
+import org.bouncycastle.asn1.x500.AttributeTypeAndValue;
+import org.bouncycastle.asn1.x500.RDN;
+import org.bouncycastle.asn1.x500.style.BCStyle;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERSet;
 import org.bouncycastle.asn1.cms.Attribute;
@@ -146,6 +151,26 @@ class VerificationServiceTest {
     }
 
     @Test
+    void extractsCommonNameFromMultiValuedRdn() throws Exception {
+        String commonName = "Multi-valued signer common name";
+        X500Name subject = new X500Name(new RDN[]{new RDN(new AttributeTypeAndValue[]{
+                new AttributeTypeAndValue(BCStyle.OU, new DERUTF8String("X")),
+                new AttributeTypeAndValue(BCStyle.CN, new DERUTF8String(commonName))})});
+        var builder = new JcaX509v3CertificateBuilder(subject, BigInteger.TWO,
+                Date.from(Instant.parse("2020-01-01T00:00:00Z")),
+                Date.from(Instant.parse("2040-01-01T00:00:00Z")), subject, unrelatedKeys.getPublic());
+        var multiValuedCertificate = new JcaX509CertificateConverter().setProvider(PROVIDER).getCertificate(
+                builder.build(new JcaContentSignerBuilder("SHA512withRSA")
+                        .setProvider(PROVIDER).build(unrelatedKeys.getPrivate())));
+        byte[] cms = generateCms(document, unrelatedKeys.getPrivate(), multiValuedCertificate, true, true);
+
+        VerificationResult result = service().verify(cms);
+
+        assertTrue(result.integrityValid());
+        assertEquals(commonName, result.signerName());
+    }
+
+    @Test
     void detectsModifiedEncapsulatedContent() throws Exception {
         SignedData original = signedData(validCms);
         var changedContent = new ContentInfo(CMSObjectIdentifiers.data,
@@ -224,10 +249,13 @@ class VerificationServiceTest {
         assertThrows(CMSException.class, () -> service().verify(input), scenario);
     }
 
-    private static Stream<Arguments> malformedInputs() {
+    private static Stream<Arguments> malformedInputs() throws IOException {
         return Stream.of(Arguments.of("empty input", new byte[0]),
                 Arguments.of("random bytes", new byte[]{1, 2, 3, 4}),
-                Arguments.of("plain text", "not CMS".getBytes(StandardCharsets.UTF_8)));
+                Arguments.of("plain text", "not CMS".getBytes(StandardCharsets.UTF_8)),
+                Arguments.of("ASN.1 integer instead of ContentInfo", new byte[]{2, 1, 1}),
+                Arguments.of("data content instead of SignedData", new ContentInfo(
+                        CMSObjectIdentifiers.data, new DEROctetString(new byte[]{1, 2, 3})).getEncoded()));
     }
 
     @Test

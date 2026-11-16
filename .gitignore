@@ -51,3 +51,6 @@ Desktop.ini
 
 # Delivery documents are kept locally and shared separately
 /docs/
+
+# Challenge statement is kept with the local delivery documents
+/Desafio Back End Java*.pdf
