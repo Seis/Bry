@@ -10,6 +10,7 @@ import java.security.PrivateKey;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cms.*;
@@ -21,8 +22,12 @@ import org.bouncycastle.operator.DigestCalculatorProvider;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SignatureService {
+    private static final Logger log = LoggerFactory.getLogger(SignatureService.class);
+
     /** Returns attached CMS bytes. Null arguments are rejected with IllegalArgumentException. */
     public byte[] sign(byte[] document, byte[] pkcs12, String alias, char[] password)
             throws IOException, GeneralSecurityException, CMSException, OperatorCreationException {
@@ -31,11 +36,15 @@ public class SignatureService {
         requireArgument(alias, "alias");
         requireArgument(password, "password");
 
+        long startedAt = System.nanoTime();
+        log.debug("Starting attached CMS signing: documentBytes={}, algorithm=SHA512withRSA", document.length);
+
         KeyStore store = getStore(pkcs12, password);
         PrivateKey pk = getPk(alias, password, store);
         if (!(store.getCertificate(alias) instanceof X509Certificate certificate)) {
             throw new GeneralSecurityException("No X.509 certificate found for alias: " + alias);
         }
+        log.debug("PKCS12 private key and signer certificate loaded");
 
         SignerInfoGenerator signerInfo = new JcaSimpleSignerInfoGeneratorBuilder()
                 .setProvider(new BouncyCastleProvider())
@@ -46,7 +55,10 @@ public class SignatureService {
         generator.addCertificates(new JcaCertStore(List.of(certificate)));
 
         CMSProcessableByteArray content = new CMSProcessableByteArray(document);
-        return generator.generate(content, true).getEncoded();
+        byte[] result = generator.generate(content, true).getEncoded();
+        log.info("Attached CMS signing completed: documentBytes={}, signatureBytes={}, durationMs={}",
+                document.length, result.length, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
+        return result;
     }
 
     private static void requireArgument(Object value, String name) {

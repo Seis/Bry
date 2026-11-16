@@ -31,3 +31,14 @@ The application starts on port 8080. Endpoints are implemented as the challenge 
 
 Base package: `br.com.bry.challenge`.
 Challenge documents and sample resources retain their original filenames and contents.
+
+## Logging
+
+Application logs default to `INFO`. Enable signing diagnostics locally with:
+
+```bash
+APP_LOG_LEVEL=DEBUG ./mvnw spring-boot:run
+```
+
+Logs include operation stages, byte counts and elapsed time, without document contents,
+passwords or private keys. HTTP failures should be logged once at the API exception handler.
