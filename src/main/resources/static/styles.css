@@ -13,14 +13,7 @@ button { width: fit-content; padding: 7px 16px; cursor: pointer; }
 button:disabled { cursor: wait; opacity: .6; }
 small, .hint { color: #565f69; }
 #downloads a, #downloads button { display: inline-block; margin: 4px 12px 4px 0; }
-dl { display: grid; grid-template-columns: minmax(100px, 150px) minmax(0, 1fr); gap: 8px 16px; }
-dt { font-weight: 600; }
-dd { margin: 0; overflow-wrap: anywhere; }
-ul { padding-left: 22px; }
-li { margin-bottom: 6px; }
 pre { padding: 12px; background: #f4f5f6; overflow: auto; font-size: 13px; }
-summary { cursor: pointer; }
 [data-state="error"], [data-state="invalid"] { color: #a12020; }
 [data-state="valid"] { color: #146b37; }
-[data-state="warning"] { color: #855600; }
-@media (max-width: 480px) { section { padding: 16px; } dl { grid-template-columns: 1fr; gap: 4px; } dd { margin-bottom: 8px; } }
+@media (max-width: 480px) { section { padding: 16px; } }

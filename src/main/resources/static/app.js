@@ -63,42 +63,10 @@ signForm.addEventListener('submit', async event => {
   }
 });
 
-function listItem(list, text) {
-  const item = document.createElement('li');
-  item.textContent = text;
-  list.append(item);
-}
-
 function renderResult(result) {
   const heading = document.querySelector('#result-status');
   heading.textContent = result.status;
-  heading.dataset.state = result.status === 'VALIDO'
-    ? (result.observations.length ? 'warning' : 'valid') : 'invalid';
-  const infos = document.querySelector('#result-infos');
-  infos.replaceChildren();
-  const fields = [['Signatário', result.infos.signerName], ['Data da assinatura', result.infos.signingTime],
-    ['Algoritmo', result.infos.hashAlgorithm], ['Hash do documento', result.infos.documentHash],
-    ['Certificado válido desde', result.checks.certificateValidFrom],
-    ['Certificado válido até', result.checks.certificateValidUntil]];
-  for (const [label, value] of fields) {
-    const term = document.createElement('dt');
-    term.textContent = label;
-    const description = document.createElement('dd');
-    description.textContent = value ?? 'Não informado';
-    infos.append(term, description);
-  }
-  const checks = document.querySelector('#result-checks');
-  checks.replaceChildren();
-  const labels = { integrityValid: 'Integridade correta', chainTrusted: 'Cadeia confiável',
-    certificateTrusted: 'Cadeia válida na data atual', certificateExpired: 'Certificado vencido',
-    certificateNotYetValid: 'Certificado ainda não vigente', signingTimeInFuture: 'Data da assinatura no futuro' };
-  for (const [key, label] of Object.entries(labels)) {
-    listItem(checks, `${label}: ${result.checks[key] ? 'Sim' : 'Não'}`);
-  }
-  const observations = document.querySelector('#result-observations');
-  observations.replaceChildren();
-  (result.observations.length ? result.observations : ['Nenhuma observação.'])
-    .forEach(text => listItem(observations, text));
+  heading.dataset.state = result.status === 'VALIDO' ? 'valid' : 'invalid';
   document.querySelector('#result-json').textContent = JSON.stringify(result, null, 2);
   document.querySelector('#result').hidden = false;
 }
