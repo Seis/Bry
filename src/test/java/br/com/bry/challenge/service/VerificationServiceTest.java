@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import br.com.bry.challenge.dto.VerificationResult;
+import br.com.bry.challenge.dto.VerificationResponse;
 import br.com.bry.challenge.util.Utils;
 import org.bouncycastle.asn1.ASN1EncodableVector;
 import org.bouncycastle.asn1.DERUTF8String;
@@ -80,16 +80,17 @@ class VerificationServiceTest {
     @Test
     @DisplayName("Stage 3: verify signature integrity, certificate trust and signer information")
     void stage3VerifiesIntegrityTrustAndSignerInformation() throws Exception {
-        VerificationResult result = service().verify(validCms);
+        VerificationResponse result = service().verify(validCms);
 
         assertAll(
-                () -> assertTrue(result.integrityValid()),
-                () -> assertTrue(result.certificateTrusted()),
+                () -> assertEquals("VALIDO", result.status()),
+                () -> assertTrue(result.checks().integrityValid()),
+                () -> assertTrue(result.checks().certificateTrusted()),
                 () -> assertTrue(result.checks().chainTrusted()),
-                () -> assertEquals("HUB2 TESTES", result.signerName()),
-                () -> assertEquals(VALIDATION_TIME, result.signingTime()),
-                () -> assertEquals("SHA-512", result.hashAlgorithm()),
-                () -> assertEquals("dc1a7de77c59a29f366a4b154b03ad7d99013e36e08beb50d976358bea7b045884fe72111b27cf7d6302916b2691ac7696c1637e1ab44584d8d6613825149e35", result.documentHash()));
+                () -> assertEquals("HUB2 TESTES", result.infos().signerName()),
+                () -> assertEquals(VALIDATION_TIME, result.infos().signingTime()),
+                () -> assertEquals("SHA-512", result.infos().hashAlgorithm()),
+                () -> assertEquals("dc1a7de77c59a29f366a4b154b03ad7d99013e36e08beb50d976358bea7b045884fe72111b27cf7d6302916b2691ac7696c1637e1ab44584d8d6613825149e35", result.infos().documentHash()));
     }
 
     @BeforeAll
@@ -133,21 +134,21 @@ class VerificationServiceTest {
     @Test
     void verifiesCmsProducedBySignatureService() throws Exception {
         byte[] cms = new SignatureService().sign(document, pkcs12, alias, "bry123456".toCharArray());
-        VerificationResult result = service().verify(cms);
+        VerificationResponse result = service().verify(cms);
 
-        assertAll(() -> assertTrue(result.integrityValid()),
-                () -> assertTrue(result.certificateTrusted()));
+        assertAll(() -> assertTrue(result.checks().integrityValid()),
+                () -> assertTrue(result.checks().certificateTrusted()));
     }
 
     @Test
     void extractsSignerNameSigningTimeDocumentHashAndAlgorithm() throws Exception {
-        VerificationResult result = service().verify(validCms);
+        VerificationResponse result = service().verify(validCms);
 
         assertAll(
-                () -> assertEquals("HUB2 TESTES", result.signerName()),
-                () -> assertEquals(VALIDATION_TIME, result.signingTime()),
-                () -> assertEquals("dc1a7de77c59a29f366a4b154b03ad7d99013e36e08beb50d976358bea7b045884fe72111b27cf7d6302916b2691ac7696c1637e1ab44584d8d6613825149e35", result.documentHash()),
-                () -> assertEquals("SHA-512", result.hashAlgorithm()));
+                () -> assertEquals("HUB2 TESTES", result.infos().signerName()),
+                () -> assertEquals(VALIDATION_TIME, result.infos().signingTime()),
+                () -> assertEquals("dc1a7de77c59a29f366a4b154b03ad7d99013e36e08beb50d976358bea7b045884fe72111b27cf7d6302916b2691ac7696c1637e1ab44584d8d6613825149e35", result.infos().documentHash()),
+                () -> assertEquals("SHA-512", result.infos().hashAlgorithm()));
     }
 
     @Test
@@ -164,10 +165,10 @@ class VerificationServiceTest {
                         .setProvider(PROVIDER).build(unrelatedKeys.getPrivate())));
         byte[] cms = generateCms(document, unrelatedKeys.getPrivate(), multiValuedCertificate, true, true);
 
-        VerificationResult result = service().verify(cms);
+        VerificationResponse result = service().verify(cms);
 
-        assertTrue(result.integrityValid());
-        assertEquals(commonName, result.signerName());
+        assertTrue(result.checks().integrityValid());
+        assertEquals(commonName, result.infos().signerName());
     }
 
     @Test
@@ -178,7 +179,7 @@ class VerificationServiceTest {
         byte[] modified = encode(new SignedData(original.getDigestAlgorithms(), changedContent,
                 original.getCertificates(), original.getCRLs(), original.getSignerInfos()));
 
-        assertFalse(service().verify(modified).integrityValid());
+        assertFalse(service().verify(modified).checks().integrityValid());
     }
 
     @Test
@@ -193,34 +194,37 @@ class VerificationServiceTest {
         byte[] modified = encode(new SignedData(original.getDigestAlgorithms(), original.getEncapContentInfo(),
                 original.getCertificates(), original.getCRLs(), new DERSet(changedSigner)));
 
-        assertFalse(service().verify(modified).integrityValid());
+        assertFalse(service().verify(modified).checks().integrityValid());
     }
 
     @Test
     void separatesCryptographicIntegrityFromRootTrust() throws Exception {
         var service = new VerificationService(unrelatedRoot, List.of(intermediate), CLOCK);
-        VerificationResult result = service.verify(validCms);
+        VerificationResponse result = service.verify(validCms);
 
-        assertAll(() -> assertTrue(result.integrityValid()),
-                () -> assertFalse(result.certificateTrusted()));
+        assertAll(() -> assertTrue(result.checks().integrityValid()),
+                () -> assertFalse(result.checks().certificateTrusted()),
+                () -> assertEquals("INVALIDO", result.status()));
     }
 
     @Test
     void doesNotTrustASelfSignedCertificateJustBecauseItIsEmbedded() throws Exception {
         byte[] cms = generateCms(document, unrelatedKeys.getPrivate(), unrelatedRoot, true, true);
-        VerificationResult result = service().verify(cms);
+        VerificationResponse result = service().verify(cms);
 
-        assertAll(() -> assertTrue(result.integrityValid()),
-                () -> assertFalse(result.certificateTrusted()));
+        assertAll(() -> assertTrue(result.checks().integrityValid()),
+                () -> assertFalse(result.checks().certificateTrusted()),
+                () -> assertEquals("INVALIDO", result.status()));
     }
 
     @Test
     void rejectsIncompleteCertificateChain() throws Exception {
         var service = new VerificationService(root, List.of(), CLOCK);
-        VerificationResult result = service.verify(validCms);
+        VerificationResponse result = service.verify(validCms);
 
-        assertAll(() -> assertTrue(result.integrityValid()),
-                () -> assertFalse(result.certificateTrusted()));
+        assertAll(() -> assertTrue(result.checks().integrityValid()),
+                () -> assertFalse(result.checks().certificateTrusted()),
+                () -> assertEquals("INVALIDO", result.status()));
     }
 
     @ParameterizedTest(name = "Certificate validity at {0}")
@@ -228,10 +232,10 @@ class VerificationServiceTest {
     void checksCertificateValidityAtTheConfiguredTime(Instant validationTime, boolean expired, boolean notYetValid) throws Exception {
         var service = new VerificationService(root, List.of(intermediate),
                 Clock.fixed(validationTime, ZoneOffset.UTC));
-        VerificationResult result = service.verify(validCms);
+        VerificationResponse result = service.verify(validCms);
 
-        assertAll(() -> assertTrue(result.integrityValid()),
-                () -> assertFalse(result.certificateTrusted()),
+        assertAll(() -> assertTrue(result.checks().integrityValid()),
+                () -> assertFalse(result.checks().certificateTrusted()),
                 () -> assertTrue(result.checks().chainTrusted()),
                 () -> assertEquals(expired, result.checks().certificateExpired()),
                 () -> assertEquals(notYetValid, result.checks().certificateNotYetValid()),

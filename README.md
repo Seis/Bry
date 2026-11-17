@@ -56,9 +56,13 @@ Both endpoints accept `multipart/form-data`, with or without a trailing slash.
 ### POST /signature/
 
 Parts: `document` (original file), `pkcs12` (signing key store), and `password`.
-The PKCS12 must contain exactly one RSA private key with its certificate; its alias is
-discovered automatically. The response is plain-text Base64 containing an attached CMS
-signature made with SHA-512 and RSA.
+The PKCS12 must contain exactly one RSA private key with its RSA certificate; its alias
+is discovered automatically. Secret-key entries are ignored, including entries protected
+with a different password. Before generating CMS, the service signs and verifies an
+internal challenge with SHA-512/RSA to confirm that the private key matches the certificate.
+Incompatible signing material returns `400`.
+The response is plain-text Base64 containing an attached CMS signature made with SHA-512
+and RSA.
 
 ```bash
 curl --fail-with-body http://localhost:8080/signature/ \
@@ -86,6 +90,9 @@ The JSON response contains:
 - `checks`: `integrityValid`, `chainTrusted`, `certificateTrusted`, `certificateExpired`,
   `certificateNotYetValid`, `signingTimeInFuture`, `certificateValidFrom`, `certificateValidUntil`.
 - `observations`: explanations for failed checks and date-related warnings.
+
+The overall status combines the two checks required in stage 3: signature integrity and
+certificate-chain trust. An intact signature from an untrusted certificate returns `INVALIDO`.
 
 By the chosen API policy, date checks are advisory: expired/not-yet-valid certificates
 and future signing times do **not** change `status`. `certificateTrusted` reports chain
@@ -154,8 +161,9 @@ GitHub Actions workflows are prepared in `.github/workflows/`:
 
 - `ci.yml`: builds and runs the full test suite on branch pushes, pull requests and
   manual runs, then retains the executable and JUnit reports as artifacts for 14 days.
-- `release.yml`: on a tag such as `v1.0.0`, reruns the tests and publishes the executable
-  as a GitHub Release asset, with running instructions and checksums. Tag names must match `vMAJOR.MINOR.PATCH`.
+- `release.yml`: on a tag push, a Release published through GitHub's UI, or a manual
+  run for an existing tag, reruns the tests and publishes the executable JAR, running
+  instructions and checksums. Tag names must match `vMAJOR.MINOR.PATCH`.
 
 Both use GitHub-hosted Ubuntu runners and fetch the latest available Temurin Java 17
 update. No access to the private GitLab instance, self-hosted runner or deployment
@@ -178,9 +186,17 @@ git push origin v1.0.0
 
 Only push a tag when you intend to publish: its workflow creates a GitHub Release after
 the build passes. The Release contains `bry.jar`, `RUNNING.txt` and `SHA256SUMS`.
-The report and sample documents are delivered separately. Download the assets directly from
-the repository's Releases page. A new version should use a new tag; rerunning an already
-published tag does not overwrite its existing Release.
+The report and sample documents are delivered separately. Download `bry.jar` under
+the Release's **Assets**. GitHub's automatic **Source code (zip/tar.gz)** downloads contain
+source files, not the executable.
+
+To complete an existing Release that has only source archives, open **Actions → Publish
+release → Run workflow**, select the updated `main` branch and enter the existing tag
+in `tag`. The workflow checks out that exact tag, builds and tests it, then uploads
+`bry.jar`, `RUNNING.txt` and `SHA256SUMS` to the existing Release. It verifies that all three
+assets are present; a failed upload fails the workflow. Reruns replace those three assets
+with the files rebuilt from the same tag. A new application version should use a new tag
+created after its changes are committed; rebuilding an old tag does not include later fixes.
 
 The POM uses Maven's `revision` property: local/CI builds default to `1.0-SNAPSHOT`,
 while a tag `v1.0.0` builds version `1.0.0` with `-Drevision=1.0.0`.

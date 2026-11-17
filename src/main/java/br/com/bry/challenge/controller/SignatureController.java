@@ -64,7 +64,7 @@ public class SignatureController {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("signature must contain valid Base64", e);
         }
-        return VerificationResponse.from(verificationService.verify(cms));
+        return verificationService.verify(cms);
     }
 
     private static void checkSize(MultipartFile file, long maxBytes) {

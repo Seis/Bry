@@ -16,6 +16,8 @@ import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.stream.Stream;
 
+import br.com.bry.challenge.exception.InvalidSigningMaterialException;
+import br.com.bry.challenge.support.SigningMaterialFixtures;
 import br.com.bry.challenge.util.Utils;
 import org.bouncycastle.asn1.cms.Attribute;
 import org.bouncycastle.asn1.cms.CMSAttributes;
@@ -35,6 +37,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -147,6 +150,33 @@ class SignatureServiceTest {
         assertNotNull(attribute, "Stage 4 requires a signingTime attribute");
         assertEquals(1, attribute.getAttrValues().size());
         assertNotNull(Time.getInstance(attribute.getAttrValues().getObjectAt(0)).getDate());
+    }
+
+    @ParameterizedTest(name = "Rejects mismatched signing material with automatic alias selection: {0}")
+    @ValueSource(booleans = {false, true})
+    void rejectsMismatchedPrivateKeyAndCertificate(boolean automaticAlias) throws Exception {
+        char[] password = PASSWORD.toCharArray();
+        byte[] mismatched = SigningMaterialFixtures.withMismatchedCertificate(pkcs12, alias, password);
+
+        assertThrows(InvalidSigningMaterialException.class, () -> {
+            if (automaticAlias) {
+                service.sign(document, mismatched, password);
+            } else {
+                service.sign(document, mismatched, alias, password);
+            }
+        });
+    }
+
+    @Test
+    void ignoresDifferentlyProtectedSecretKeyWhenSelectingRsaPrivateKey() throws Exception {
+        char[] password = PASSWORD.toCharArray();
+        byte[] mixed = SigningMaterialFixtures.withDifferentlyProtectedSecretKey(pkcs12, password);
+
+        CMSSignedData cms = new CMSSignedData(service.sign(document, mixed, password));
+
+        assertArrayEquals(document, (byte[]) cms.getSignedContent().getContent());
+        assertTrue(singleSigner(cms).verify(new JcaSimpleSignerInfoVerifierBuilder()
+                .setProvider(new BouncyCastleProvider()).build(expectedCertificate.getPublicKey())));
     }
 
     @Test

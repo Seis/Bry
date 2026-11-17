@@ -27,7 +27,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import br.com.bry.challenge.dto.VerificationChecks;
-import br.com.bry.challenge.dto.VerificationResult;
+import br.com.bry.challenge.dto.VerificationResponse;
+import br.com.bry.challenge.dto.VerificationResponse.Infos;
 import org.bouncycastle.asn1.cms.Attribute;
 import org.bouncycastle.asn1.cms.AttributeTable;
 import org.bouncycastle.asn1.cms.CMSAttributes;
@@ -57,7 +58,7 @@ public class VerificationService {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    public VerificationResult verify(byte[] cms)
+    public VerificationResponse verify(byte[] cms)
             throws CMSException, CertificateException, OperatorCreationException {
         CMSSignedData signedData = parseCms(cms);
         byte[] content = readAttachedContent(signedData);
@@ -73,8 +74,9 @@ public class VerificationService {
         String documentHash = hashDocument(content, hashAlgorithm, provider);
         VerificationChecks checks = checkCertificateAndDates(certificate, integrityValid, signingTime);
 
-        return new VerificationResult(integrityValid, checks.certificateTrusted(), signerName, signingTime,
-                documentHash, hashAlgorithm, checks, describeChecks(checks));
+        String status = integrityValid && checks.chainTrusted() ? "VALIDO" : "INVALIDO";
+        return new VerificationResponse(status, new Infos(signerName, signingTime, documentHash, hashAlgorithm),
+                checks, describeChecks(checks));
     }
 
     private static CMSSignedData parseCms(byte[] cms) throws CMSException {

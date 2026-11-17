@@ -12,6 +12,7 @@ import java.util.Base64;
 
 import br.com.bry.challenge.service.SignatureService;
 import br.com.bry.challenge.service.VerificationService;
+import br.com.bry.challenge.support.SigningMaterialFixtures;
 import br.com.bry.challenge.util.Utils;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.cms.CMSObjectIdentifiers;
@@ -180,6 +181,32 @@ class SignatureControllerTest {
         mvc.perform(multipart("/signature/").file(file("document", document))
                         .file(file("pkcs12", new byte[]{1, 2, 3})).param("password", "bry123456"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsMismatchedPrivateKeyAndCertificate() throws Exception {
+        byte[] mismatched = SigningMaterialFixtures.withMismatchedCertificate(pkcs12, alias,
+                "bry123456".toCharArray());
+
+        mvc.perform(multipart("/signature/").file(file("document", document))
+                        .file(file("pkcs12", mismatched)).param("password", "bry123456"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    @Test
+    void signsWithRsaKeyDespiteDifferentlyProtectedSecretKey() throws Exception {
+        byte[] mixed = SigningMaterialFixtures.withDifferentlyProtectedSecretKey(pkcs12,
+                "bry123456".toCharArray());
+
+        String encoded = mvc.perform(multipart("/signature/").file(file("document", document))
+                        .file(file("pkcs12", mixed)).param("password", "bry123456"))
+                .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_PLAIN))
+                .andReturn().getResponse().getContentAsString();
+
+        byte[] cms = Base64.getDecoder().decode(encoded);
+        assertArrayEquals(document, (byte[]) new CMSSignedData(cms).getSignedContent().getContent());
+        assertTrue(verificationService.verify(cms).checks().integrityValid());
     }
 
     @Test

@@ -2,11 +2,13 @@ package br.com.bry.challenge.service;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.PrivateKey;
+import java.security.Signature;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -15,20 +17,17 @@ import java.util.concurrent.TimeUnit;
 
 import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cms.*;
-import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
 import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoGeneratorBuilder;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.DigestCalculatorProvider;
 import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import br.com.bry.challenge.exception.InvalidSigningMaterialException;
 
 public class SignatureService {
     private static final Logger log = LoggerFactory.getLogger(SignatureService.class);
+    private static final byte[] KEY_PAIR_CHALLENGE =
+            "BRy signing key pair validation".getBytes(StandardCharsets.US_ASCII);
 
     public byte[] sign(byte[] document, byte[] pkcs12, char[] password)
             throws IOException, GeneralSecurityException, CMSException, OperatorCreationException {
@@ -43,10 +42,11 @@ public class SignatureService {
             var entries = store.aliases();
             while (entries.hasMoreElements()) {
                 String candidate = entries.nextElement();
-                if (store.isKeyEntry(candidate)) {
+                if (store.entryInstanceOf(candidate, KeyStore.PrivateKeyEntry.class)
+                        && store.getCertificate(candidate) instanceof X509Certificate certificate
+                        && "RSA".equalsIgnoreCase(certificate.getPublicKey().getAlgorithm())) {
                     Key key = store.getKey(candidate, password);
-                    if (key instanceof PrivateKey && "RSA".equalsIgnoreCase(key.getAlgorithm())
-                            && store.getCertificate(candidate) instanceof X509Certificate) {
+                    if (key instanceof PrivateKey && "RSA".equalsIgnoreCase(key.getAlgorithm())) {
                         aliases.add(candidate);
                     }
                 }
@@ -82,6 +82,7 @@ public class SignatureService {
         if (!(store.getCertificate(alias) instanceof X509Certificate certificate)) {
             throw new GeneralSecurityException("No X.509 certificate found for alias: " + alias);
         }
+        validateKeyPair(pk, certificate);
         log.debug("PKCS12 private key and signer certificate loaded");
 
         SignerInfoGenerator signerInfo = new JcaSimpleSignerInfoGeneratorBuilder()
@@ -97,6 +98,25 @@ public class SignatureService {
         log.info("Attached CMS signing completed: documentBytes={}, signatureBytes={}, durationMs={}",
                 document.length, result.length, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
         return result;
+    }
+
+    private static void validateKeyPair(PrivateKey privateKey, X509Certificate certificate)
+            throws InvalidSigningMaterialException {
+        // Prove the pair works with the signing algorithm before generating a CMS.
+        try {
+            Signature proof = Signature.getInstance("SHA512withRSA", new BouncyCastleProvider());
+            proof.initSign(privateKey);
+            proof.update(KEY_PAIR_CHALLENGE);
+            byte[] signature = proof.sign();
+            proof.initVerify(certificate.getPublicKey());
+            proof.update(KEY_PAIR_CHALLENGE);
+            if (!proof.verify(signature)) {
+                throw new InvalidKeyException("Private key does not match the signer certificate");
+            }
+        } catch (GeneralSecurityException e) {
+            throw new InvalidSigningMaterialException(
+                    "RSA private key and certificate must form a usable signing key pair", e);
+        }
     }
 
     private static void requireArgument(Object value, String name) {
